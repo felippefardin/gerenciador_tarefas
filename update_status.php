@@ -1,0 +1,5 @@
+<?php
+require_once __DIR__.'/includes/auth.php';require_login();ensure_v17_schema();header('Content-Type: application/json');
+$data=json_decode(file_get_contents('php://input'),true);$id=(int)($data['task_id']??0);$status=$data['status']??'';$allowed=['todo','doing','review','done'];if(!$id||!in_array($status,$allowed,true)){http_response_code(422);echo json_encode(['ok'=>false]);exit;}
+$s=db()->prepare('SELECT id,title,status,creator_id,is_private FROM tasks WHERE id=?');$s->execute([$id]);$task=$s->fetch();if(!$task){http_response_code(404);echo json_encode(['ok'=>false]);exit;}if(!can_manage_task($task,(int)current_user()['id'])){http_response_code(403);echo json_encode(['ok'=>false,'message'=>'Somente o criador ou um responsável pode alterar esta tarefa pública.']);exit;}
+$u=db()->prepare('UPDATE tasks SET status=? WHERE id=?');$u->execute([$status,$id]);log_activity('alterou o status da tarefa','task',$id,$task['title'].' → '.task_status_label($status));$_SESSION['flash']='Status da tarefa atualizado para '.task_status_label($status).'.';echo json_encode(['ok'=>true]);

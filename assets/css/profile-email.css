@@ -1,0 +1,27 @@
+.profile-email-change .panel-head h2 { margin-bottom: 5px; }
+.profile-email-change .panel-head p { margin: 0; }
+.profile-email-change-request,
+.profile-email-change-confirm {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) auto;
+    gap: 12px;
+    align-items: end;
+    margin-top: 16px;
+}
+.profile-email-change-confirm {
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+}
+.profile-email-change-request label,
+.profile-email-change-confirm label { margin-top: 0; }
+.profile-email-change-request .btn,
+.profile-email-change-confirm .btn {
+    height: 42px;
+    white-space: nowrap;
+}
+@media (max-width: 900px) {
+    .profile-email-change-request,
+    .profile-email-change-confirm { grid-template-columns: 1fr; }
+    .profile-email-change-request .btn,
+    .profile-email-change-confirm .btn { width: 100%; }
+}
