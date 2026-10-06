@@ -11,7 +11,7 @@ $stmt->execute([$id]);
 $project = $stmt->fetch();
 if (!$project) { http_response_code(404); exit('Projeto não encontrado.'); }
 
-$stmt = $pdo->prepare('SELECT t.*,' . task_assignee_names_sql('t') . ' assignee_names FROM tasks t WHERE t.project_id=? ORDER BY FIELD(t.priority,"urgent","high","medium","low"),t.due_date IS NULL,t.due_date');
+$stmt = $pdo->prepare('SELECT t.*,' . task_assignee_names_sql('t') . ' assignee_names FROM tasks t WHERE t.project_id=? AND t.archived_at IS NULL ORDER BY FIELD(t.priority,"urgent","high","medium","low"),t.due_date IS NULL,t.due_date');
 $stmt->execute([$id]);
 $tasks = $stmt->fetchAll();
 $groups = ['todo'=>[], 'doing'=>[], 'review'=>[], 'done'=>[]];
@@ -21,9 +21,9 @@ $pageTitle = $project['name'];
 require __DIR__ . '/includes/header.php';
 ?>
 <div class="page-head">
-    <div><a class="back" href="projects.php">← Projetos</a><h1><?= e($project['name']) ?></h1><p class="muted"><?= e($project['description'] ?: 'Sem descrição') ?> • Responsável: <?= e($project['owner_name']) ?></p></div>
+    <div><a class="back" href="projects.php"><i class="bi bi-arrow-left" aria-hidden="true"></i> Projetos</a><h1><?= e($project['name']) ?></h1><p class="muted"><?= e($project['description'] ?: 'Sem descrição') ?> • Responsável: <?= e($project['owner_name']) ?></p></div>
     <div class="page-actions">
-        <a class="btn" href="task_form.php?project_id=<?= $project['id'] ?>">+ Nova tarefa</a>
+        <a class="btn" href="task_form.php?project_id=<?= $project['id'] ?>"><i class="bi bi-plus-lg" aria-hidden="true"></i> Nova tarefa</a>
         <?php if ($canDeleteProject): ?>
         <form method="post" action="delete_project.php" onsubmit="return confirm('Tem certeza que deseja remover este projeto? Todas as tarefas, comentários e anexos também serão apagados.');">
             <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">

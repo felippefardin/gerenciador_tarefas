@@ -60,7 +60,7 @@ function ensure_v8_schema(): void {
         db()->exec('ALTER TABLE tasks ADD COLUMN is_private TINYINT(1) NOT NULL DEFAULT 0 AFTER due_date');
     }
     if (!db_column_exists('simple_tasks', 'is_private')) {
-        db()->exec('ALTER TABLE simple_tasks ADD COLUMN is_private TINYINT(1) NOT NULL DEFAULT 0 AFTER due_date');
+        db()->exec('ALTER TABLE simple_tasks ADD COLUMN is_private TINYINT(1) NOT NULL DEFAULT 1 AFTER due_date');
     }
     $done = true;
 }
@@ -105,6 +105,44 @@ function ensure_v17_schema(): void {
     $done = true;
 }
 
+function ensure_v22_schema(): void {
+    static $done = false;
+    if ($done) return;
+    ensure_v17_schema();
+    db()->exec("CREATE TABLE IF NOT EXISTS notifications (
+      id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      recipient_id INT UNSIGNED NOT NULL,
+      actor_id INT UNSIGNED NULL,
+      action VARCHAR(100) NOT NULL,
+      entity_type VARCHAR(60) NOT NULL,
+      entity_id INT UNSIGNED NULL,
+      details TEXT NULL,
+      link VARCHAR(255) NULL,
+      read_at DATETIME NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_notifications_recipient (recipient_id,read_at,created_at),
+      CONSTRAINT fk_notifications_recipient FOREIGN KEY (recipient_id) REFERENCES users(id) ON DELETE CASCADE,
+      CONSTRAINT fk_notifications_actor FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB");
+    $done = true;
+}
+
+function ensure_v23_schema(): void {
+    static $done = false;
+    if ($done) return;
+    ensure_v22_schema();
+    if (!db_column_exists('tasks', 'archived_at')) {
+        db()->exec('ALTER TABLE tasks ADD COLUMN archived_at DATETIME NULL AFTER is_private');
+    }
+    if (!db_column_exists('tasks', 'archived_by')) {
+        db()->exec('ALTER TABLE tasks ADD COLUMN archived_by INT UNSIGNED NULL AFTER archived_at');
+    }
+    if (!db_index_exists('tasks', 'idx_tasks_archived')) {
+        db()->exec('ALTER TABLE tasks ADD INDEX idx_tasks_archived (archived_at,status,due_date)');
+    }
+    $done = true;
+}
+
 function can_manage_task(array $task, int $userId): bool {
     if ((int)$task['creator_id'] === $userId) return true;
     if (!empty($task['is_private'])) return false;
@@ -114,11 +152,7 @@ function can_manage_task(array $task, int $userId): bool {
 }
 
 function can_manage_reminder(array $reminder, int $userId): bool {
-    if ((int)$reminder['user_id'] === $userId) return true;
-    if (!empty($reminder['is_private'])) return false;
-    $stmt = db()->prepare('SELECT 1 FROM reminder_assignees WHERE reminder_id=? AND user_id=? LIMIT 1');
-    $stmt->execute([(int)$reminder['id'], $userId]);
-    return (bool)$stmt->fetchColumn();
+    return (int)$reminder['user_id'] === $userId;
 }
 
 function reminder_assignee_names_sql(string $alias = 's'): string {

@@ -84,6 +84,10 @@ html[data-theme="light"] .filter-chip.active { background: var(--accent); border
 html[data-theme="light"] .collapse-completed { background: #ffffff; border-color: #c8d3dc; }
 html[data-theme="light"] .deadline-notification-item { background: #f7f9fb; }
 html[data-theme="light"] .deadline-notification-item.is-today { background: #fff9e8; border-color: #dbc260; }
+html[data-theme="light"] .notification-bell,html[data-theme="light"] .notification-dropdown,html[data-theme="light"] .notification-center{background:#fff}
+html[data-theme="light"] .notification-badge{border-color:#fff}
+html[data-theme="light"] .notification-preview.is-unread{background:#eaf7fc}
+html[data-theme="light"] .notification-center-item:hover,html[data-theme="light"] .notification-center-icon{background:#f7f9fb}
 html[data-theme="light"] .chart-track { background: #e3eaf0; }
 html[data-theme="light"] .donut-chart { background: conic-gradient(var(--accent) calc(var(--completion) * 1%),#e3eaf0 0); }
 html[data-theme="light"] .reminder-action-edit {
@@ -190,9 +194,14 @@ html[data-theme="light"] .reminder-pending-card .reminder-empty-check { backgrou
 }
 .theme-toggle:hover { border-color: var(--accent); color: var(--accent); }
 .theme-toggle span:first-child { font-size: 16px; line-height: 1; }
-.theme-toggle-floating { position: fixed; z-index: 50; top: 16px; right: 16px; box-shadow: var(--shadow); }
+.accessibility-dock { z-index:250; display:flex; align-items:center; gap:8px; }
+.accessibility-dock:not(.is-in-header) { position:fixed; top:16px; right:16px; }
+.accessibility-dock.is-in-header { position:static; flex:0 0 auto; }
+.accessibility-dock .theme-toggle { min-height:38px; box-shadow:0 8px 24px rgba(0,0,0,.22); }
 @media (max-width: 700px) {
     .theme-label { display: none; }
     .theme-toggle { width: 36px; height: 36px; padding: 0; }
-    .theme-toggle-floating { top: 10px; right: 10px; }
+    .accessibility-dock { gap:6px; }
+    .accessibility-dock:not(.is-in-header) { top:10px; right:10px; }
 }
+html[data-theme="light"] .deadline-alert-modal .modal-content{background:#fff;color:#263744;border-color:#d8e0e7}html[data-theme="light"] .deadline-alert-modal .btn-close{filter:none}html[data-theme="light"] .deadline-alert-item{background:#f7f9fb;border-color:#d8e0e7;color:#263744}html[data-theme="light"] .archived-card{background:#fff}html[data-theme="light"] .task-archive-button{background:#eaf8fc}

@@ -32,13 +32,24 @@
         button.className = 'theme-toggle';
         button.dataset.themeToggle = '';
 
+        let dock = document.querySelector('[data-accessibility-dock]');
+        if (!dock) {
+            dock = document.createElement('div');
+            dock.className = 'accessibility-dock';
+            dock.dataset.accessibilityDock = '';
+        }
+
         const userbox = document.querySelector('.userbox');
         if (userbox) {
-            userbox.insertBefore(button, userbox.firstChild);
-        } else {
-            button.classList.add('theme-toggle-floating');
-            document.body.appendChild(button);
+            dock.classList.add('is-in-header');
+            const notificationMenu = userbox.querySelector('.notification-menu');
+            if (dock.parentNode !== userbox) {
+                userbox.insertBefore(dock, notificationMenu ? notificationMenu.nextSibling : userbox.firstChild);
+            }
+        } else if (!dock.parentNode) {
+            document.body.appendChild(dock);
         }
+        dock.appendChild(button);
 
         button.addEventListener('click', function () {
             const next = root.dataset.theme === 'dark' ? 'light' : 'dark';

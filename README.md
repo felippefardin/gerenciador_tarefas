@@ -14,6 +14,8 @@ Projeto local em **PHP + MySQL**, preparado para XAMPP.
 - Troca de e-mail no **Meu perfil** com dois códigos: um enviado ao endereço atual e outro ao novo.
 - Tema claro/escuro disponível em todas as telas, com preferência salva no navegador.
 - Projetos e tarefas em Kanban.
+- Aviso em modal para tarefas que vencem hoje ou amanhã.
+- Arquivamento de tarefas concluídas, com restauração para qualquer etapa ou exclusão manual definitiva.
 - Vários responsáveis podem ser vinculados à mesma tarefa.
 - Apenas dois perfis: Usuário e Administrador. `felippe.andreata` permanece administrador e pode nomear outros.
 - Tarefas e lembretes públicos são gerenciados pelo criador e pelos responsáveis; os privados ficam visíveis somente ao criador.

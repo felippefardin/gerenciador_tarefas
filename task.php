@@ -5,11 +5,12 @@ ensure_v2_schema();
 ensure_v8_schema();
 ensure_v14_schema();
 ensure_v17_schema();
+ensure_v23_schema();
 $pdo = db();
 $u = current_user();
 $id = (int)($_GET['id'] ?? 0);
 
-$stmt = $pdo->prepare('SELECT t.*,p.name project_name,p.owner_id,' . task_assignee_names_sql('t') . ' assignee_names,c.name creator_name FROM tasks t JOIN projects p ON p.id=t.project_id JOIN users c ON c.id=t.creator_id WHERE t.id=? AND (t.is_private=0 OR t.creator_id=?)');
+$stmt = $pdo->prepare('SELECT t.*,p.name project_name,p.owner_id,' . task_assignee_names_sql('t') . ' assignee_names,c.name creator_name FROM tasks t JOIN projects p ON p.id=t.project_id JOIN users c ON c.id=t.creator_id WHERE t.id=? AND t.archived_at IS NULL AND (t.is_private=0 OR t.creator_id=?)');
 $stmt->execute([$id, $u['id']]);
 $task = $stmt->fetch();
 if (!$task) { http_response_code(404); exit('Tarefa não encontrada.'); }
@@ -237,18 +238,25 @@ require __DIR__ . '/includes/header.php';
 ?>
 <div class="page-head task-detail-head">
     <div class="task-detail-title">
-        <a class="back" href="task_form.php">← Voltar para o quadro</a>
+        <a class="back" href="task_form.php"><i class="bi bi-arrow-left" aria-hidden="true"></i> Voltar para o quadro</a>
         <span class="task-page-eyebrow">Detalhes da tarefa</span>
         <h1><?= e($task['title']) ?></h1>
-        <p class="muted">Criada por <?= e($task['creator_name']) ?> <span>•</span> <?= !empty($task['is_private']) ? '🔒 Privada' : '🌐 Pública' ?></p>
+        <p class="muted">Criada por <?= e($task['creator_name']) ?> <span>•</span> <i class="bi <?= !empty($task['is_private']) ? 'bi-lock-fill' : 'bi-people-fill' ?>" aria-hidden="true"></i> <?= !empty($task['is_private']) ? 'Privada' : 'Pública' ?></p>
     </div>
     <div class="page-actions task-detail-actions">
-        <?php if ($canDeleteTask): ?><a class="btn secondary" href="task_form.php?id=<?= $task['id'] ?>"><span>✎</span> Editar</a><?php endif; ?>
+        <?php if ($canDeleteTask): ?><a class="btn secondary" href="task_form.php?id=<?= $task['id'] ?>"><i class="bi bi-pencil-square" aria-hidden="true"></i> Editar</a><?php endif; ?>
+        <?php if ($canDeleteTask && $task['status'] === 'done'): ?>
+        <form method="post" action="archive_task.php" onsubmit="return confirm('Arquivar esta tarefa concluída?');">
+            <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+            <input type="hidden" name="id" value="<?= (int)$task['id'] ?>">
+            <button class="btn secondary" type="submit"><i class="bi bi-archive-fill" aria-hidden="true"></i> Arquivar</button>
+        </form>
+        <?php endif; ?>
         <?php if ($canDeleteTask): ?>
         <form method="post" action="delete_task.php" onsubmit="return confirm('Tem certeza que deseja apagar esta tarefa? Comentários, subtarefas e anexos também serão apagados.');">
             <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
             <input type="hidden" name="id" value="<?= $task['id'] ?>">
-            <button class="btn danger" type="submit"><span>×</span> Excluir</button>
+            <button class="btn danger" type="submit"><i class="bi bi-trash3" aria-hidden="true"></i> Excluir</button>
         </form>
         <?php endif; ?>
     </div>
@@ -263,7 +271,7 @@ require __DIR__ . '/includes/header.php';
         </div>
         <div class="task-detail-grid">
             <div><span class="task-metric-icon">↻</span><small>Status</small><strong><?= e(task_status_label($task['status'])) ?></strong></div>
-            <div><span class="task-metric-icon">!</span><small>Prioridade</small><strong><?= e(priority_label($task['priority'])) ?></strong></div>
+            <div><span class="task-metric-icon"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></span><small>Prioridade</small><strong><?= e(priority_label($task['priority'])) ?></strong></div>
             <div><span class="task-metric-icon">♙</span><small>Responsáveis</small><strong><?= e($task['assignee_names'] ?: 'Não definidos') ?></strong></div>
             <div><span class="task-metric-icon">□</span><small>Prazo</small><strong><?= $task['due_date'] ? date('d/m/Y', strtotime($task['due_date'])) : 'Sem prazo' ?></strong></div>
         </div>
@@ -296,15 +304,15 @@ require __DIR__ . '/includes/header.php';
     <?php endif; ?>
 
     <div class="panel task-section-card task-subtasks-card">
-        <div class="panel-head task-section-heading"><div><span class="task-section-icon">✓</span><div><h2>Subtarefas</h2><p><?= $doneCount ?> de <?= count($subtasks) ?> concluídas</p></div></div><span class="task-progress-value"><?= $progress ?>%</span></div>
+        <div class="panel-head task-section-heading"><div><span class="task-section-icon"><i class="bi bi-list-check" aria-hidden="true"></i></span><div><h2>Subtarefas</h2><p><?= $doneCount ?> de <?= count($subtasks) ?> concluídas</p></div></div><span class="task-progress-value"><?= $progress ?>%</span></div>
         <div class="progress"><span style="width:<?= $progress ?>%"></span></div>
         <div class="subtasks">
-            <?php if (!$subtasks): ?><div class="task-inline-empty"><span>✓</span><p>Nenhuma subtarefa adicionada.</p></div><?php endif; ?>
+            <?php if (!$subtasks): ?><div class="task-inline-empty"><span><i class="bi bi-check2-circle" aria-hidden="true"></i></span><p>Nenhuma subtarefa adicionada.</p></div><?php endif; ?>
             <?php foreach ($subtasks as $st): ?>
             <form method="post" class="subtask <?= $st['completed'] ? 'done' : '' ?>">
                 <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                 <input type="hidden" name="action" value="toggle_subtask"><input type="hidden" name="subtask_id" value="<?= $st['id'] ?>">
-                <?php if ($canManageTaskFiles): ?><button type="submit" class="check"><?= $st['completed'] ? '✓' : '○' ?></button><?php else: ?><span class="check"><?= $st['completed'] ? '✓' : '○' ?></span><?php endif; ?><span><?= e($st['title']) ?></span>
+                <?php if ($canManageTaskFiles): ?><button type="submit" class="check"><i class="bi <?= $st['completed'] ? 'bi-check-circle-fill' : 'bi-circle' ?>" aria-hidden="true"></i></button><?php else: ?><span class="check"><i class="bi <?= $st['completed'] ? 'bi-check-circle-fill' : 'bi-circle' ?>" aria-hidden="true"></i></span><?php endif; ?><span><?= e($st['title']) ?></span>
             </form>
             <?php endforeach; ?>
         </div>
@@ -373,7 +381,7 @@ require __DIR__ . '/includes/header.php';
                             <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                             <input type="hidden" name="action" value="delete_comment_image">
                             <input type="hidden" name="image_id" value="<?= $img['id'] ?>">
-                            <button type="submit" title="Excluir imagem" aria-label="Excluir imagem">×</button>
+                            <button type="submit" title="Excluir imagem" aria-label="Excluir imagem"><i class="bi bi-trash3" aria-hidden="true"></i></button>
                         </form>
                         <?php endif; ?>
                     </div>
@@ -392,7 +400,7 @@ require __DIR__ . '/includes/header.php';
         <?php if ($canManageTaskFiles): ?><form method="post" enctype="multipart/form-data" class="task-upload-form">
             <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
             <input type="hidden" name="action" value="upload"><input type="file" name="file" required>
-            <button class="btn small">+ Enviar arquivo</button>
+            <button class="btn small"><i class="bi bi-cloud-arrow-up" aria-hidden="true"></i> Enviar arquivo</button>
         </form>
         <p class="muted tiny">Até 10 MB: PDF, Word, Excel, imagens, TXT ou ZIP.</p>
         <?php endif; ?>
@@ -423,7 +431,7 @@ require __DIR__ . '/includes/header.php';
 </div>
 
 <div class="image-modal" id="imageModal" aria-hidden="true">
-    <button type="button" class="image-modal-close" aria-label="Fechar">×</button>
+    <button type="button" class="image-modal-close" aria-label="Fechar"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
     <div class="image-modal-content">
         <img src="" alt="Imagem ampliada" id="imageModalImg">
         <div class="image-modal-title" id="imageModalTitle"></div>

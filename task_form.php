@@ -3,13 +3,14 @@ require_once __DIR__ . '/includes/auth.php';
 require_login();
 ensure_v8_schema();
 ensure_v14_schema();
+ensure_v23_schema();
 $pdo = db();
 $user = current_user();
 $task = null;
 $id = (int)($_GET['id'] ?? 0);
 
 if ($id) {
-    $stmt = $pdo->prepare('SELECT * FROM tasks WHERE id=? AND (is_private=0 OR creator_id=?)');
+    $stmt = $pdo->prepare('SELECT * FROM tasks WHERE id=? AND archived_at IS NULL AND (is_private=0 OR creator_id=?)');
     $stmt->execute([$id, $user['id']]);
     $task = $stmt->fetch();
     if (!$task) exit('Tarefa não encontrada.');
@@ -57,17 +58,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($id) {
             $stmt = $pdo->prepare('UPDATE tasks SET title=?,description=?,status=?,priority=?,assignee_id=?,due_date=?,is_private=? WHERE id=?');
             $stmt->execute([$title,$description,$status,$priority,$assignee,$due,$isPrivate,$id]);
-            log_activity('atualizou a tarefa','task',$id,$title);
+            $activityAction = 'atualizou a tarefa';
         } else {
             $projectId = general_project_id($pdo, $user);
             $stmt = $pdo->prepare('INSERT INTO tasks(project_id,title,description,status,priority,assignee_id,creator_id,due_date,is_private) VALUES(?,?,?,?,?,?,?,?,?)');
             $stmt->execute([$projectId,$title,$description,$status,$priority,$assignee,$user['id'],$due,$isPrivate]);
             $id = (int)$pdo->lastInsertId();
-            log_activity('criou a tarefa','task',$id,$title);
+            $activityAction = 'criou a tarefa';
         }
         $pdo->prepare('DELETE FROM task_assignees WHERE task_id=?')->execute([$id]);
         $linkAssignee = $pdo->prepare('INSERT INTO task_assignees(task_id,user_id) VALUES(?,?)');
         foreach ($assignees as $assigneeId) $linkAssignee->execute([$id, $assigneeId]);
+        log_activity($activityAction,'task',$id,$title);
         $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
@@ -80,12 +82,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $users = $pdo->query('SELECT id,name FROM users ORDER BY name')->fetchAll();
 $requestedFilter = (string)($_GET['filter'] ?? 'all');
-$filter = in_array($requestedFilter, ['all','mine','overdue','today','done','due_soon'], true) ? $requestedFilter : 'all';
+$filter = in_array($requestedFilter, ['all','mine','overdue','today','done','due_soon','due_alert'], true) ? $requestedFilter : 'all';
 $search = trim((string)($_GET['q'] ?? ''));
 $requestedSort = (string)($_GET['sort'] ?? 'priority');
 $sort = in_array($requestedSort, ['priority','due','assignee'], true) ? $requestedSort : 'priority';
 
-$where = ['(t.is_private=0 OR t.creator_id=?)'];
+$where = ['t.archived_at IS NULL', '(t.is_private=0 OR t.creator_id=?)'];
 $params = [(int)$user['id']];
 if ($filter === 'mine') {
     $where[] = '(EXISTS(SELECT 1 FROM task_assignees tam WHERE tam.task_id=t.id AND tam.user_id=?) OR t.creator_id=?)';
@@ -99,6 +101,11 @@ if ($filter === 'mine') {
     $where[] = "t.status='done'";
 } elseif ($filter === 'due_soon') {
     $where[] = "t.status<>'done' AND t.due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 5 DAY)";
+} elseif ($filter === 'due_alert') {
+    $where[] = "t.status<>'done' AND t.due_date IN (CURDATE(),DATE_ADD(CURDATE(),INTERVAL 1 DAY))";
+    $where[] = '(t.creator_id=? OR EXISTS(SELECT 1 FROM task_assignees taa WHERE taa.task_id=t.id AND taa.user_id=?))';
+    $params[] = (int)$user['id'];
+    $params[] = (int)$user['id'];
 }
 if ($search !== '') {
     $where[] = '(t.title LIKE ? OR t.description LIKE ? OR EXISTS(SELECT 1 FROM task_assignees tas JOIN users uas ON uas.id=tas.user_id WHERE tas.task_id=t.id AND uas.name LIKE ?) OR c.name LIKE ?)';
@@ -132,7 +139,7 @@ require __DIR__ . '/includes/header.php';
         <div><strong><?= $totalVisible ?></strong><span>visíveis</span></div>
         <div><strong><?= $activeVisible ?></strong><span>ativas</span></div>
         <div class="<?= $overdueVisible ? 'has-overdue' : '' ?>"><strong><?= $overdueVisible ?></strong><span>atrasadas</span></div>
-        <?php if ($task): ?><a class="btn secondary" href="task_form.php">Cancelar edição</a><?php else: ?><button class="btn task-head-cta" type="button" data-bs-toggle="modal" data-bs-target="#taskEditorModal">+ Adicionar nova tarefa</button><?php endif; ?>
+        <?php if ($task): ?><a class="btn secondary" href="task_form.php">Cancelar edição</a><?php else: ?><button class="btn task-head-cta" type="button" data-bs-toggle="modal" data-bs-target="#taskEditorModal"><i class="bi bi-plus-lg" aria-hidden="true"></i> Adicionar nova tarefa</button><?php endif; ?>
     </div>
 </div>
 <div class="modal fade task-editor-modal" id="taskEditorModal" tabindex="-1" aria-labelledby="taskEditorModalTitle" aria-hidden="true">
@@ -140,10 +147,10 @@ require __DIR__ . '/includes/header.php';
    <div class="modal-content task-compose-card">
     <div class="task-compose-head modal-header">
         <div class="task-compose-heading">
-            <span class="task-compose-icon" aria-hidden="true">✓</span>
+            <span class="task-compose-icon" aria-hidden="true"><i class="bi bi-card-checklist"></i></span>
             <div><h2 id="taskEditorModalTitle"><?= $task ? 'Editar tarefa' : 'Nova tarefa' ?></h2><p>Preencha o essencial agora. Os detalhes podem ser atualizados depois.</p></div>
         </div>
-        <button class="task-modal-close" type="button" data-bs-dismiss="modal" aria-label="Fechar">×</button>
+        <button class="task-modal-close" type="button" data-bs-dismiss="modal" aria-label="Fechar"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
     </div>
     <form method="post" class="task-create-form task-form-modern" id="taskCreateForm">
         <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
@@ -153,7 +160,7 @@ require __DIR__ . '/includes/header.php';
             <small>Use um título curto, claro e orientado à ação.</small>
         </div>
         <fieldset class="task-assignees-field task-form-assignees">
-            <legend><span>Responsáveis</span><small>Selecione uma ou mais pessoas</small></legend>
+            <legend><span>Responsáveis</span><small>Somente os selecionados receberão notificações</small></legend>
             <div class="assignee-options">
                 <?php foreach($users as $usr): ?>
                 <label class="assignee-option"><input type="checkbox" name="assignee_ids[]" value="<?= $usr['id'] ?>" <?= in_array((int)$usr['id'], $selectedAssignees, true) ? 'checked' : '' ?>><span><?= e($usr['name']) ?></span></label>
@@ -170,7 +177,7 @@ require __DIR__ . '/includes/header.php';
         <div class="task-form-description"><label for="task-description">Descrição e instruções</label><textarea id="task-description" name="description" rows="4" placeholder="Inclua contexto, entregáveis, links ou observações importantes..."><?= e($task['description'] ?? '') ?></textarea></div>
         <div class="task-form-footer">
             <span class="task-form-hint">Campos com informações objetivas facilitam a busca e os alertas.</span>
-            <div class="task-form-actions"><?php if ($task): ?><a class="btn secondary" href="task_form.php">Cancelar</a><?php endif; ?><button class="btn task-primary-action" type="submit"><?= $task ? 'Salvar alterações' : 'Criar tarefa' ?> <span aria-hidden="true">→</span></button></div>
+            <div class="task-form-actions"><?php if ($task): ?><a class="btn secondary" href="task_form.php">Cancelar</a><?php endif; ?><button class="btn task-primary-action" type="submit"><?= $task ? 'Salvar alterações' : 'Criar tarefa' ?> <i class="bi bi-arrow-right" aria-hidden="true"></i></button></div>
         </div>
     </form>
    </div>
@@ -185,6 +192,7 @@ require __DIR__ . '/includes/header.php';
             <a class="filter-chip <?= $filter === $value ? 'active' : '' ?>" href="<?= e($filterUrl) ?>"><?= e($label) ?></a>
         <?php endforeach; ?>
         <?php if ($filter === 'due_soon'): ?><a class="filter-chip active" href="task_form.php?filter=due_soon">Vencem em até 5 dias</a><?php endif; ?>
+        <?php if ($filter === 'due_alert'): ?><a class="filter-chip active" href="task_form.php?filter=due_alert">Vencem hoje ou amanhã</a><?php endif; ?>
     </div>
     <form class="task-search-form task-modern-search" method="get">
         <input type="hidden" name="filter" value="<?= e($filter) ?>">
@@ -201,17 +209,23 @@ require __DIR__ . '/includes/header.php';
     </form>
 </section>
 <div class="task-board-heading"><div><h2>Quadro de tarefas</h2><p><?= $totalVisible ?> resultado<?= $totalVisible === 1 ? '' : 's' ?> nesta visualização</p></div><span>Arraste os cartões para atualizar o status</span></div>
-<?php if (!$tasks): ?><div class="panel task-empty-state"><div class="task-empty-icon" aria-hidden="true">✓</div><strong>Nenhuma tarefa encontrada</strong><span>Experimente limpar os filtros ou criar uma nova tarefa.</span><a class="btn secondary" href="task_form.php">Limpar visualização</a></div><?php endif; ?>
+<?php if (!$tasks): ?><div class="panel task-empty-state"><div class="task-empty-icon" aria-hidden="true"><i class="bi bi-card-checklist"></i></div><strong>Nenhuma tarefa encontrada</strong><span>Experimente limpar os filtros ou criar uma nova tarefa.</span><a class="btn secondary" href="task_form.php">Limpar visualização</a></div><?php endif; ?>
+<?php if ($tasks): ?>
 <div class="kanban task-board">
 <?php foreach (['todo'=>'A Fazer','doing'=>'Em andamento','review'=>'Em revisão','done'=>'Concluído'] as $status=>$label): ?>
 <section class="kanban-col status-<?= $status ?>" data-kanban-column="<?= $status ?>"><div class="kanban-head"><div class="kanban-title"><i aria-hidden="true"></i><h2><?= $label ?></h2></div><div class="kanban-head-actions"><span><?= count($groups[$status]) ?></span><?php if ($status === 'done'): ?><button type="button" class="collapse-completed" aria-expanded="true">Recolher</button><?php endif; ?></div></div><div class="dropzone" data-status="<?= $status ?>">
 <?php foreach ($groups[$status] as $item): ?>
 <?php $canManage = (int)$item['creator_id'] === (int)$user['id'] || (empty($item['is_private']) && !empty($item['is_assignee'])); ?>
-<article class="task-card task-card-modern" draggable="<?= $canManage ? 'true' : 'false' ?>" data-task-id="<?= $item['id'] ?>"><a href="task.php?id=<?= $item['id'] ?>"><div class="task-meta"><span class="priority <?= e($item['priority']) ?>"><?= e(priority_label($item['priority'])) ?></span><span><?= !empty($item['is_private']) ? '🔒 Privada' : 'Pública' ?></span></div><h3><?= e($item['title']) ?></h3><div class="task-card-people"><span class="task-card-avatar" aria-hidden="true"><?= e(strtoupper(substr($item['assignee_names'] ?: $item['creator_name'], 0, 1))) ?></span><small><?= e($item['assignee_names'] ?: 'Sem responsáveis') ?></small></div><?php if ($item['due_date']): ?><div class="task-card-due <?= $item['due_date'] < date('Y-m-d') && $item['status'] !== 'done' ? 'is-overdue' : '' ?>"><span aria-hidden="true">◷</span><?= date('d/m/Y', strtotime($item['due_date'])) ?></div><?php endif; ?></a><?php if ($canManage): ?><a class="task-edit-link" href="task_form.php?id=<?= $item['id'] ?>">Editar tarefa <span aria-hidden="true">→</span></a><?php endif; ?></article>
+<article class="task-card task-card-modern" draggable="<?= $canManage ? 'true' : 'false' ?>" data-task-id="<?= $item['id'] ?>">
+    <a href="task.php?id=<?= $item['id'] ?>"><div class="task-meta"><span class="priority <?= e($item['priority']) ?>"><?= e(priority_label($item['priority'])) ?></span><span><i class="bi <?= !empty($item['is_private']) ? 'bi-lock-fill' : 'bi-people-fill' ?>" aria-hidden="true"></i> <?= !empty($item['is_private']) ? 'Privada' : 'Pública' ?></span></div><h3><?= e($item['title']) ?></h3><div class="task-card-people"><span class="task-card-avatar" aria-hidden="true"><?= e(strtoupper(substr($item['assignee_names'] ?: $item['creator_name'], 0, 1))) ?></span><small><?= e($item['assignee_names'] ?: 'Sem responsáveis') ?></small></div><?php if ($item['due_date']): ?><div class="task-card-due <?= $item['due_date'] < date('Y-m-d') && $item['status'] !== 'done' ? 'is-overdue' : '' ?>"><i class="bi bi-clock" aria-hidden="true"></i><?= date('d/m/Y', strtotime($item['due_date'])) ?></div><?php endif; ?></a>
+    <?php if ($canManage): ?><a class="task-edit-link" href="task_form.php?id=<?= $item['id'] ?>">Editar tarefa <i class="bi bi-arrow-right" aria-hidden="true"></i></a><?php endif; ?>
+    <?php if ($status === 'done' && $canManage): ?><form method="post" action="archive_task.php" class="task-archive-form" onsubmit="return confirm('Arquivar esta tarefa concluída?');"><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="id" value="<?= (int)$item['id'] ?>"><button class="task-archive-button" type="submit" title="Arquivar tarefa"><i class="bi bi-archive-fill" aria-hidden="true"></i><span>Arquivar tarefa</span></button></form><?php endif; ?>
+</article>
 <?php endforeach; ?>
 </div></section>
 <?php endforeach; ?>
 </div>
+<?php endif; ?>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     <?php if ($task || isset($_GET['new'])): ?>

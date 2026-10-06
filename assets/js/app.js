@@ -72,6 +72,42 @@ document.querySelectorAll('.dropzone').forEach(zone => {
 })();
 
 (() => {
+  const menu = document.querySelector('[data-notification-menu]');
+  const toggle = menu?.querySelector('[data-notification-toggle]');
+  const dropdown = menu?.querySelector('[data-notification-dropdown]');
+  const badge = menu?.querySelector('[data-notification-badge]');
+  if (!menu || !toggle || !dropdown) return;
+
+  const close = () => {
+    dropdown.hidden = true;
+    toggle.setAttribute('aria-expanded', 'false');
+  };
+
+  toggle.addEventListener('click', async event => {
+    event.stopPropagation();
+    const opening = dropdown.hidden;
+    dropdown.hidden = !opening;
+    toggle.setAttribute('aria-expanded', String(opening));
+    if (!opening || !badge || badge.classList.contains('is-empty')) return;
+
+    const data = new FormData();
+    data.append('csrf_token', document.querySelector('input[name="csrf_token"]')?.value || '');
+    data.append('action', 'mark_read');
+    try {
+      const response = await fetch('notifications.php', {method:'POST',headers:{Accept:'application/json'},body:data});
+      if (!response.ok) throw new Error();
+      badge.textContent = '0';
+      badge.classList.add('is-empty');
+      menu.querySelectorAll('.notification-preview.is-unread').forEach(item => item.classList.remove('is-unread'));
+    } catch (_) {}
+  });
+
+  dropdown.addEventListener('click', event => event.stopPropagation());
+  document.addEventListener('click', close);
+  document.addEventListener('keydown', event => { if (event.key === 'Escape') close(); });
+})();
+
+(() => {
   const column = document.querySelector('[data-kanban-column="done"]');
   const button = column?.querySelector('.collapse-completed');
   if (!column || !button) return;
@@ -144,4 +180,16 @@ document.querySelectorAll('.dropzone').forEach(zone => {
   document.querySelectorAll('.js-cancel-edit').forEach(button => {
     button.addEventListener('click', () => closeEditor(button.dataset.commentId));
   });
+})();
+
+(() => {
+  const element = document.querySelector('[data-deadline-alert-modal]');
+  if (!element || !window.bootstrap) return;
+  const signature = element.dataset.alertSignature || 'default';
+  const storageKey = `deadline-alert-seen-${signature}`;
+  try {
+    if (sessionStorage.getItem(storageKey) === '1') return;
+    sessionStorage.setItem(storageKey, '1');
+  } catch (_) {}
+  window.setTimeout(() => window.bootstrap.Modal.getOrCreateInstance(element).show(), 350);
 })();

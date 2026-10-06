@@ -14,6 +14,7 @@ $networkUrl = 'http://' . NETWORK_COMPUTER_NAME . NETWORK_APP_PATH;
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/css/style.css">
     <link rel="stylesheet" href="assets/css/theme.css">
     <script src="assets/js/theme.js"></script>
@@ -21,8 +22,8 @@ $networkUrl = 'http://' . NETWORK_COMPUTER_NAME . NETWORK_APP_PATH;
 <body>
 <main class="tutorial-page">
     <header class="tutorial-top">
-        <div><span class="muted">Central de ajuda</span><h1>📘 Como usar o Gerenciador de Tarefas</h1><p class="muted">Guia completo, da entrada no sistema até a conclusão de uma tarefa.</p></div>
-        <a class="btn" href="<?= $loggedIn ? 'dashboard.php' : 'login.php' ?>">← <?= $loggedIn ? 'Voltar ao sistema' : 'Voltar ao login' ?></a>
+        <div><span class="muted">Central de ajuda</span><h1><i class="bi bi-book" aria-hidden="true"></i> Como usar o Gerenciador de Tarefas</h1><p class="muted">Guia completo, da entrada no sistema até a conclusão de uma tarefa.</p></div>
+        <a class="btn" href="<?= $loggedIn ? 'dashboard.php' : 'login.php' ?>"><i class="bi bi-arrow-left" aria-hidden="true"></i> <?= $loggedIn ? 'Voltar ao sistema' : 'Voltar ao login' ?></a>
     </header>
 
     <nav class="tutorial-nav" aria-label="Índice do tutorial">
@@ -67,7 +68,7 @@ $networkUrl = 'http://' . NETWORK_COMPUTER_NAME . NETWORK_APP_PATH;
     <section class="panel tutorial-section" id="tarefas">
         <h2>4. Criando e detalhando tarefas</h2>
         <ol>
-            <li>Clique em <strong>Tarefas</strong> no menu ou em <strong>+ Nova tarefa</strong> no Dashboard.</li>
+            <li>Clique em <strong>Tarefas</strong> no menu ou em <strong>Nova tarefa</strong> no Dashboard.</li>
             <li>Preencha o título com uma ação clara, por exemplo: “Conferir relatório mensal”.</li>
             <li>Quando aplicável, role a lista de usuários e marque um ou vários responsáveis. Depois escolha a prioridade e a data de vencimento. Cada responsável possui uma caixa de seleção própria.</li>
             <li>Use a descrição para registrar contexto, resultado esperado e informações necessárias.</li>

@@ -91,6 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $dbReady) {
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/css/style.css?v=20261002-4">
     <link rel="stylesheet" href="assets/css/theme.css?v=20261002-4">
     <script src="assets/js/theme.js"></script>
@@ -99,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $dbReady) {
 <body class="auth-page">
 <div class="auth-shell">
     <section class="auth-card auth-login-card">
-        <h1>✓ Gerenciador de Tarefas</h1>
+        <h1><i class="bi bi-check2-square" aria-hidden="true"></i> Gerenciador de Tarefas</h1>
         <p>Entre para acessar os projetos, tarefas e lembretes compartilhados.</p>
         <?php if (!$dbReady): ?><div class="error">Banco ainda não configurado. Abra <a href="setup.php">setup.php</a> primeiro.</div><?php endif; ?>
         <?php if ($loginMessage): ?><div class="flash"><?= e($loginMessage) ?></div><?php endif; ?>
@@ -120,7 +121,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $dbReady) {
         <div class="login-help-box">
             <strong>Primeira vez por aqui?</strong>
             <p>Veja o passo a passo completo para criar sua conta, organizar projetos, tarefas e lembretes.</p>
-            <a class="btn secondary" href="tutorial.php">📘 Abrir tutorial completo</a>
+            <a class="btn secondary" href="tutorial.php"><i class="bi bi-book" aria-hidden="true"></i> Abrir tutorial completo</a>
         </div>
         <div class="network-access-box">
             <strong>Acesso pela rede local</strong>

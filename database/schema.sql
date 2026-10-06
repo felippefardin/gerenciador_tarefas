@@ -35,8 +35,11 @@ CREATE TABLE IF NOT EXISTS tasks (
   creator_id INT UNSIGNED NOT NULL,
   due_date DATE NULL,
   is_private TINYINT(1) NOT NULL DEFAULT 0,
+  archived_at DATETIME NULL,
+  archived_by INT UNSIGNED NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_tasks_archived (archived_at,status,due_date),
   CONSTRAINT fk_tasks_project FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
   CONSTRAINT fk_tasks_assignee FOREIGN KEY (assignee_id) REFERENCES users(id) ON DELETE SET NULL,
   CONSTRAINT fk_tasks_creator FOREIGN KEY (creator_id) REFERENCES users(id) ON DELETE RESTRICT
@@ -94,6 +97,22 @@ CREATE TABLE IF NOT EXISTS activity_logs (
   CONSTRAINT fk_logs_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS notifications (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  recipient_id INT UNSIGNED NOT NULL,
+  actor_id INT UNSIGNED NULL,
+  action VARCHAR(100) NOT NULL,
+  entity_type VARCHAR(60) NOT NULL,
+  entity_id INT UNSIGNED NULL,
+  details TEXT NULL,
+  link VARCHAR(255) NULL,
+  read_at DATETIME NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_notifications_recipient (recipient_id,read_at,created_at),
+  CONSTRAINT fk_notifications_recipient FOREIGN KEY (recipient_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_notifications_actor FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
 CREATE TABLE IF NOT EXISTS comment_images (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   comment_id INT UNSIGNED NOT NULL,
@@ -110,7 +129,7 @@ CREATE TABLE IF NOT EXISTS simple_tasks (
   user_id INT UNSIGNED NOT NULL,
   title VARCHAR(255) NOT NULL,
   due_date DATE NULL,
-  is_private TINYINT(1) NOT NULL DEFAULT 0,
+  is_private TINYINT(1) NOT NULL DEFAULT 1,
   completed TINYINT(1) NOT NULL DEFAULT 0,
   completed_at DATETIME NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

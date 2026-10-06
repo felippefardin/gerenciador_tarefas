@@ -4,19 +4,21 @@ require_login();
 ensure_v2_schema();
 ensure_v8_schema();
 ensure_v17_schema();
+ensure_v23_schema();
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(405); exit('Método não permitido.'); }
 verify_csrf();
 
 $pdo = db();
 $user = current_user();
 $id = (int)($_POST['id'] ?? 0);
+$returnTo = ($_POST['return_to'] ?? '') === 'archived.php' ? 'archived.php' : 'task_form.php';
 $stmt = $pdo->prepare('SELECT t.*, p.owner_id, p.name project_name FROM tasks t JOIN projects p ON p.id=t.project_id WHERE t.id=?');
 $stmt->execute([$id]);
 $task = $stmt->fetch();
-if (!$task) { flash_message('Não foi possível excluir: tarefa não encontrada.', 'error'); redirect('task_form.php'); }
+if (!$task) { flash_message('Não foi possível excluir: tarefa não encontrada.', 'error'); redirect($returnTo); }
 
 $canDelete = can_manage_task($task, (int)$user['id']);
-if (!$canDelete) { flash_message('Não foi possível excluir: você não possui permissão.', 'error'); redirect('task_form.php'); }
+if (!$canDelete) { flash_message('Não foi possível excluir: você não possui permissão.', 'error'); redirect($returnTo); }
 
 $files = [];
 $s = $pdo->prepare('SELECT stored_name FROM attachments WHERE task_id=?');
@@ -34,9 +36,9 @@ try {
     $pdo->commit();
     foreach ($files as $file) remove_uploaded_file($file);
     flash_message('Tarefa excluída com sucesso.', 'success');
-    redirect('task_form.php');
+    redirect($returnTo);
 } catch (Throwable $e) {
     if ($pdo->inTransaction()) $pdo->rollBack();
     flash_message('Não foi possível excluir a tarefa. Tente novamente.', 'error');
-    redirect('task.php?id=' . $id);
+    redirect($returnTo === 'archived.php' ? $returnTo : 'task.php?id=' . $id);
 }
