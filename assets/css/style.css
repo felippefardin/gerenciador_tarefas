@@ -494,3 +494,12 @@ body>.topbar,body>main{zoom:var(--interface-scale,1)}
 .archived-page-head h1{display:flex;align-items:center;gap:10px}.archived-summary{margin:4px 0 16px;color:var(--muted)}.archived-summary strong{color:var(--text);font-size:20px}.archived-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.archived-card{padding:20px}.archived-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.archived-card-head h2{margin:9px 0 0;font-size:18px}.archived-date{flex:0 0 auto;color:var(--muted);font-size:11px}.archived-description{min-height:42px;margin:16px 0;color:var(--muted);line-height:1.55}.archived-meta{display:flex;flex-wrap:wrap;gap:8px 14px;padding:13px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);color:var(--muted);font-size:12px}.archived-meta span{display:inline-flex;align-items:center;gap:5px}.archived-actions{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-top:16px}.archived-restore-form{display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap}.archived-restore-form label{width:100%;margin:0;color:var(--muted);font-size:11px}.archived-restore-form select{min-width:150px}.archived-readonly{margin:16px 0 0}.archived-empty-state{display:grid;place-items:center;min-height:300px;text-align:center}.archived-empty-state>span{display:grid;place-items:center;width:58px;height:58px;border-radius:16px;background:var(--panel2);color:var(--accent);font-size:25px}.archived-empty-state h2{margin:14px 0 4px}.archived-empty-state p{margin:0}
 @media(max-width:900px){.archived-grid{grid-template-columns:1fr}.archived-actions{align-items:stretch;flex-direction:column}.archived-restore-form{width:100%}.archived-restore-form select{flex:1}.archived-actions>form:last-child,.archived-actions>form:last-child .btn{width:100%}}
 @media(max-width:560px){.archived-card-head{flex-direction:column}.archived-restore-form{display:grid;grid-template-columns:1fr}.archived-restore-form select,.archived-restore-form .btn{width:100%}.deadline-alert-modal .modal-header,.deadline-alert-modal .modal-footer,.deadline-alert-modal .modal-body{padding-left:16px;padding-right:16px}}
+
+/* Desktop: use the full available window width. */
+@media (min-width: 992px) {
+    main.container,
+    main.tutorial-page {
+        width: 100%;
+        max-width: none;
+    }
+}

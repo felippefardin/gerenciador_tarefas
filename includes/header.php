@@ -49,7 +49,7 @@ if ($user) {
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261006-archive-alerts">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261023-desktop-full">
     <link rel="stylesheet" href="assets/css/profile-email.css?v=20261002-5">
     <link rel="stylesheet" href="assets/css/theme.css?v=20261006-archive-alerts">
     <script src="assets/js/theme.js?v=20261006-header-controls"></script>
