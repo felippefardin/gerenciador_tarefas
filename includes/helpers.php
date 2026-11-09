@@ -347,3 +347,33 @@ function ensure_v7_schema(): void {
 
     $done = true;
 }
+
+// Armazenamento neutro: nenhuma extensão enviada é executada pelo servidor.
+function save_task_upload(array $file): string {
+    $error = $file['error'] ?? UPLOAD_ERR_NO_FILE;
+    if ($error !== UPLOAD_ERR_OK) {
+        $message = match ($error) {
+            UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => 'O arquivo excede o limite de envio do servidor (máximo da aplicação: 10 MB).',
+            UPLOAD_ERR_PARTIAL => 'O arquivo foi enviado parcialmente. Tente novamente.',
+            UPLOAD_ERR_NO_FILE => 'Selecione um arquivo para enviar.',
+            default => 'Não foi possível receber o arquivo. Verifique a pasta temporária e as permissões do servidor.',
+        };
+        throw new RuntimeException($message);
+    }
+    $name = $file['name'] ?? '';
+    $tmp = $file['tmp_name'] ?? '';
+    if (!is_string($name) || $name === '' || strlen($name) > 255 || preg_match('/[\x00-\x1F\x7F]/', $name)) {
+        throw new RuntimeException('Nome de arquivo inválido ou muito longo (máximo: 255 bytes).');
+    }
+    if (!is_string($tmp) || !is_uploaded_file($tmp)) throw new RuntimeException('Arquivo de envio inválido.');
+    $size = filesize($tmp);
+    if ($size === false || $size > 10 * 1024 * 1024) throw new RuntimeException('Cada arquivo deve ter no máximo 10 MB.');
+    if (is_image_name($name) && !@getimagesize($tmp)) throw new RuntimeException('O arquivo de imagem está inválido.');
+    $directory = __DIR__ . '/../uploads';
+    if (!is_dir($directory) && !@mkdir($directory, 0755, true) && !is_dir($directory)) {
+        throw new RuntimeException('Não foi possível criar a pasta de anexos.');
+    }
+    $stored = bin2hex(random_bytes(16)) . '.bin';
+    if (!move_uploaded_file($tmp, $directory . '/' . $stored)) throw new RuntimeException('Não foi possível gravar o arquivo na pasta uploads.');
+    return $stored;
+}

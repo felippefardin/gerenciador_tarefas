@@ -18,6 +18,10 @@ if (!$task) { http_response_code(404); exit('Tarefa não encontrada.'); }
 $canManageTaskFiles = can_manage_task($task, (int)$u['id']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (empty($_POST) && (int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
+        flash_message('O envio excedeu o limite total do servidor. Envie menos arquivos por vez ou ajuste post_max_size no PHP.', 'error');
+        redirect('task.php?id=' . $id);
+    }
     verify_csrf();
     $action = $_POST['action'] ?? '';
     if (in_array($action, ['subtask','toggle_subtask','upload','delete_attachment'], true) && !$canManageTaskFiles) {
@@ -31,11 +35,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $hasUpload = false;
         if ($files && is_array($files['name'] ?? null)) {
             foreach ($files['name'] as $i => $name) {
-                if (($files['error'][$i] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK && $name !== '') { $hasUpload = true; break; }
+                if (($files['error'][$i] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) { $hasUpload = true; break; }
             }
         }
 
         if ($body !== '' || $hasUpload) {
+            $savedUploads = [];
             $pdo->beginTransaction();
             try {
                 $s = $pdo->prepare('INSERT INTO comments(task_id,user_id,body) VALUES(?,?,?)');
@@ -44,21 +49,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 if ($files && is_array($files['name'] ?? null)) {
                     foreach ($files['name'] as $i => $originalName) {
-                        $error = $files['error'][$i] ?? UPLOAD_ERR_NO_FILE;
-                        if ($error !== UPLOAD_ERR_OK || $originalName === '') continue;
-                        $size = (int)($files['size'][$i] ?? 0);
-                        if ($size <= 0 || $size > 10 * 1024 * 1024) continue;
-                        $tmp = $files['tmp_name'][$i] ?? '';
-                        $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
-                        if (!in_array($ext, ['jpg','jpeg','png','gif','webp'], true)) continue;
-                        if (!@getimagesize($tmp)) continue;
-
-                        $stored = bin2hex(random_bytes(12)) . '.' . $ext;
-                        $dest = __DIR__ . '/uploads/' . $stored;
-                        if (move_uploaded_file($tmp, $dest)) {
-                            $s = $pdo->prepare('INSERT INTO comment_images(comment_id,user_id,original_name,stored_name) VALUES(?,?,?,?)');
-                            $s->execute([$commentId, $u['id'], $originalName, $stored]);
-                        }
+                        if (($files['error'][$i] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) continue;
+                        $stored = save_task_upload([
+                            'name' => $originalName,
+                            'error' => $files['error'][$i] ?? UPLOAD_ERR_NO_FILE,
+                            'size' => $files['size'][$i] ?? 0,
+                            'tmp_name' => $files['tmp_name'][$i] ?? '',
+                        ]);
+                        $savedUploads[] = $stored;
+                        $s = $pdo->prepare('INSERT INTO comment_images(comment_id,user_id,original_name,stored_name) VALUES(?,?,?,?)');
+                        $s->execute([$commentId, $u['id'], $originalName, $stored]);
                     }
                 }
                 log_activity('comentou na tarefa', 'task', $id, $task['title']);
@@ -66,7 +66,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['flash'] = 'Comentário adicionado com sucesso.';
             } catch (Throwable $e) {
                 if ($pdo->inTransaction()) $pdo->rollBack();
-                throw $e;
+                foreach ($savedUploads as $storedName) remove_uploaded_file($storedName);
+                flash_message($e instanceof RuntimeException ? $e->getMessage() : 'Não foi possível salvar o comentário e seus arquivos.', 'error');
             }
         }
     } elseif ($action === 'edit_comment') {
@@ -83,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             http_response_code(403);
             exit('Você não possui permissão para editar este comentário.');
         } elseif ($body === '' && (int)$comment['image_count'] === 0) {
-            flash_message('O comentário precisa ter texto ou pelo menos uma imagem.', 'error');
+            flash_message('O comentário precisa ter texto ou pelo menos um arquivo.', 'error');
         } else {
             $s = $pdo->prepare('UPDATE comments SET body=? WHERE id=? AND task_id=?');
             $s->execute([$body, $commentId, $id]);
@@ -126,10 +127,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $img = $s->fetch();
 
         if (!$img) {
-            flash_message('Imagem não encontrada.', 'error');
+            flash_message('Arquivo não encontrado.', 'error');
         } elseif ((int)$img['comment_user_id'] !== (int)$u['id']) {
             http_response_code(403);
-            exit('Você não possui permissão para excluir esta imagem.');
+            exit('Você não possui permissão para excluir este arquivo.');
         } else {
             $deleteWholeComment = trim((string)$img['body']) === '' && (int)$img['image_count'] <= 1;
             $pdo->beginTransaction();
@@ -138,12 +139,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $s = $pdo->prepare('DELETE FROM comments WHERE id=? AND task_id=?');
                     $s->execute([(int)$img['comment_id'], $id]);
                     log_activity('excluiu um comentário', 'task', $id, $task['title']);
-                    $_SESSION['flash'] = 'A imagem era o único conteúdo do comentário; o comentário também foi excluído.';
+                    $_SESSION['flash'] = 'O arquivo era o único conteúdo do comentário; o comentário também foi excluído.';
                 } else {
                     $s = $pdo->prepare('DELETE FROM comment_images WHERE id=?');
                     $s->execute([$imageId]);
-                    log_activity('removeu uma imagem de comentário', 'task', $id, $img['original_name']);
-                    $_SESSION['flash'] = 'Imagem removida do comentário.';
+                    log_activity('removeu um arquivo de comentário', 'task', $id, $img['original_name']);
+                    $_SESSION['flash'] = 'Arquivo removido do comentário.';
                 }
                 $pdo->commit();
                 remove_uploaded_file($img['stored_name']);
@@ -166,21 +167,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $s->execute([$sid, $id]);
         log_activity('atualizou uma subtarefa', 'task', $id, $task['title']);
         $_SESSION['flash'] = 'Subtarefa atualizada.';
-    } elseif ($action === 'upload' && isset($_FILES['file'])) {
-        $f = $_FILES['file'];
-        if ($f['error'] === UPLOAD_ERR_OK && $f['size'] <= 10 * 1024 * 1024) {
-            $ext = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
-            $allowed = ['pdf','doc','docx','xls','xlsx','png','jpg','jpeg','gif','webp','txt','zip'];
-            if (in_array($ext, $allowed, true)) {
-                $stored = bin2hex(random_bytes(12)) . '.' . $ext;
-                $dest = __DIR__ . '/uploads/' . $stored;
-                if (move_uploaded_file($f['tmp_name'], $dest)) {
-                    $s = $pdo->prepare('INSERT INTO attachments(task_id,user_id,original_name,stored_name) VALUES(?,?,?,?)');
-                    $s->execute([$id, $u['id'], $f['name'], $stored]);
-                    log_activity('anexou um arquivo', 'task', $id, $f['name']);
-                    $_SESSION['flash'] = 'Arquivo anexado com sucesso.';
-                }
-            }
+    } elseif ($action === 'upload') {
+        $stored = null;
+        try {
+            $stored = save_task_upload($_FILES['file'] ?? []);
+            $pdo->beginTransaction();
+            $s = $pdo->prepare('INSERT INTO attachments(task_id,user_id,original_name,stored_name) VALUES(?,?,?,?)');
+            $s->execute([$id, $u['id'], $_FILES['file']['name'], $stored]);
+            log_activity('anexou um arquivo', 'task', $id, $_FILES['file']['name']);
+            $pdo->commit();
+            flash_message('Arquivo anexado com sucesso.');
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            if ($stored) remove_uploaded_file($stored);
+            flash_message($e instanceof RuntimeException ? $e->getMessage() : 'Não foi possível salvar o anexo.', 'error');
         }
     } elseif ($action === 'delete_attachment') {
         $attachmentId = (int)($_POST['attachment_id'] ?? 0);
@@ -285,8 +285,8 @@ require __DIR__ . '/includes/header.php';
             <?php foreach ($imageAttachments as $a): ?>
             <?php $canDeleteThisAttachment = $canManageTaskFiles || (int)$a['user_id'] === (int)$u['id']; ?>
             <div class="image-card">
-                <button type="button" class="image-thumb js-image-preview" data-src="uploads/<?= e($a['stored_name']) ?>" data-title="<?= e($a['original_name']) ?>">
-                    <img src="uploads/<?= e($a['stored_name']) ?>" alt="<?= e($a['original_name']) ?>">
+                <button type="button" class="image-thumb js-image-preview" data-src="download.php?kind=attachment&amp;id=<?= (int)$a['id'] ?>" data-title="<?= e($a['original_name']) ?>">
+                    <img src="download.php?kind=attachment&amp;id=<?= (int)$a['id'] ?>" alt="<?= e($a['original_name']) ?>">
                     <span><?= e($a['original_name']) ?></span>
                 </button>
                 <?php if ($canDeleteThisAttachment): ?>
@@ -328,9 +328,9 @@ require __DIR__ . '/includes/header.php';
             <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
             <input type="hidden" name="action" value="comment">
             <textarea name="body" rows="3" placeholder="Escreva um comentário..."></textarea>
-            <label>Adicionar imagens ao comentário</label>
-            <input type="file" name="comment_images[]" accept="image/png,image/jpeg,image/gif,image/webp" multiple>
-            <div class="comment-form-footer"><p class="muted tiny">Você pode enviar várias imagens de até 10 MB.</p><button class="btn small">Publicar comentário</button></div>
+            <label>Adicionar arquivos ao comentário</label>
+            <input type="file" name="comment_images[]" multiple>
+            <div class="comment-form-footer"><p class="muted tiny">Envie imagens, PDF, CSV ou outros documentos. Até 10 MB por arquivo.</p><button class="btn small">Publicar comentário</button></div>
         </form>
         <div class="comments">
             <?php if (!$comments): ?><div class="task-inline-empty"><span>◌</span><p>Ainda não há comentários nesta tarefa.</p></div><?php endif; ?>
@@ -342,7 +342,7 @@ require __DIR__ . '/includes/header.php';
                     <?php if ($canManageComment): ?>
                     <div class="comment-actions">
                         <button type="button" class="comment-action js-edit-comment" data-comment-id="<?= $c['id'] ?>">Editar</button>
-                        <form method="post" onsubmit="return confirm('Excluir este comentário? As imagens dele também serão removidas.');">
+                        <form method="post" onsubmit="return confirm('Excluir este comentário? Os arquivos dele também serão removidas.');">
                             <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                             <input type="hidden" name="action" value="delete_comment">
                             <input type="hidden" name="comment_id" value="<?= $c['id'] ?>">
@@ -373,15 +373,19 @@ require __DIR__ . '/includes/header.php';
                 <div class="comment-images">
                     <?php foreach ($commentImages[$c['id']] as $img): ?>
                     <div class="comment-image-wrap">
-                        <button type="button" class="comment-image js-image-preview" data-src="uploads/<?= e($img['stored_name']) ?>" data-title="<?= e($img['original_name']) ?>">
-                            <img src="uploads/<?= e($img['stored_name']) ?>" alt="<?= e($img['original_name']) ?>">
+                        <?php if (is_image_name($img['original_name'])): ?>
+                        <button type="button" class="comment-image js-image-preview" data-src="download.php?kind=comment&amp;id=<?= (int)$img['id'] ?>" data-title="<?= e($img['original_name']) ?>">
+                            <img src="download.php?kind=comment&amp;id=<?= (int)$img['id'] ?>" alt="<?= e($img['original_name']) ?>">
                         </button>
+                        <?php else: ?>
+                        <a class="btn secondary small" href="download.php?kind=comment&amp;id=<?= (int)$img['id'] ?>">Baixar <?= e($img['original_name']) ?></a>
+                        <?php endif; ?>
                         <?php if ($canManageComment): ?>
-                        <form method="post" class="comment-image-delete" onsubmit="return confirm('Excluir esta imagem do comentário?');">
+                        <form method="post" class="comment-image-delete" onsubmit="return confirm('Excluir este arquivo do comentário?');">
                             <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                             <input type="hidden" name="action" value="delete_comment_image">
                             <input type="hidden" name="image_id" value="<?= $img['id'] ?>">
-                            <button type="submit" title="Excluir imagem" aria-label="Excluir imagem"><i class="bi bi-trash3" aria-hidden="true"></i></button>
+                            <button type="submit" title="Excluir arquivo" aria-label="Excluir arquivo"><i class="bi bi-trash3" aria-hidden="true"></i></button>
                         </form>
                         <?php endif; ?>
                     </div>
@@ -402,15 +406,15 @@ require __DIR__ . '/includes/header.php';
             <input type="hidden" name="action" value="upload"><input type="file" name="file" required>
             <button class="btn small"><i class="bi bi-cloud-arrow-up" aria-hidden="true"></i> Enviar arquivo</button>
         </form>
-        <p class="muted tiny">Até 10 MB: PDF, Word, Excel, imagens, TXT ou ZIP.</p>
+        <p class="muted tiny">Até 10 MB por arquivo: imagens, PDF, CSV e outros documentos.</p>
         <?php endif; ?>
 
         <?php if ($imageAttachments): ?>
         <h3 class="attachment-subtitle">Imagens</h3>
         <div class="attachment-mini-grid">
             <?php foreach ($imageAttachments as $a): ?>
-            <button type="button" class="attachment-mini js-image-preview" data-src="uploads/<?= e($a['stored_name']) ?>" data-title="<?= e($a['original_name']) ?>">
-                <img src="uploads/<?= e($a['stored_name']) ?>" alt="<?= e($a['original_name']) ?>">
+            <button type="button" class="attachment-mini js-image-preview" data-src="download.php?kind=attachment&amp;id=<?= (int)$a['id'] ?>" data-title="<?= e($a['original_name']) ?>">
+                <img src="download.php?kind=attachment&amp;id=<?= (int)$a['id'] ?>" alt="<?= e($a['original_name']) ?>">
             </button>
             <?php endforeach; ?>
         </div>
@@ -420,7 +424,7 @@ require __DIR__ . '/includes/header.php';
         <h3 class="attachment-subtitle">Outros arquivos</h3>
         <div class="attachments">
             <?php foreach ($otherAttachments as $a): ?>
-            <a href="uploads/<?= e($a['stored_name']) ?>" target="_blank"><strong><?= e($a['original_name']) ?></strong><small><?= e($a['user_name']) ?> • <?= date('d/m/Y H:i', strtotime($a['created_at'])) ?></small></a>
+            <a href="download.php?kind=attachment&amp;id=<?= (int)$a['id'] ?>" target="_blank"><strong><?= e($a['original_name']) ?></strong><small><?= e($a['user_name']) ?> • <?= date('d/m/Y H:i', strtotime($a['created_at'])) ?></small></a>
             <?php endforeach; ?>
         </div>
         <?php elseif (!$imageAttachments): ?>

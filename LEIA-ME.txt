@@ -1,0 +1,14 @@
+INSTALAÇÃO
+
+1. Faça uma cópia de segurança de includes/footer.php do projeto original.
+2. Copie as pastas includes e assets deste pacote para:
+   C:\Users\felippe.andreata\Documents\gerenciador_tarefas
+3. Aceite substituir includes/footer.php e mesclar as pastas assets.
+4. Caso execute pelo XAMPP em outra pasta, aplique os mesmos arquivos à pasta usada pelo Apache.
+5. Entre no sistema, atualize com Ctrl+F5 e clique em Tutorial interativo no cabeçalho, antes do seu perfil.
+
+O tutorial se adapta à tela aberta. Use Próximo, Voltar, Concluir ou Encerrar (Esc).
+Não cria nem modifica tarefas e pode ser repetido a qualquer momento.
+A ajuda existente continua disponível pelo menu Ajuda.
+
+Verificação: sintaxe JavaScript e PHP validada. A navegação com uma conta e banco de dados ativos precisa ser conferida no ambiente de execução.

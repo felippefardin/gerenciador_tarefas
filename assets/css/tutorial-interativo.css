@@ -1,0 +1,8 @@
+.topbar{position:sticky;top:0;z-index:1040}
+.topbar .tour-launch{position:static;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;min-height:38px;border:1px solid var(--border,#d6dfeb);border-radius:999px;background:var(--panel2,#f5f7fa);color:var(--text,#18243c);padding:8px 12px;font:500 13px Roboto,sans-serif;white-space:nowrap;cursor:pointer}
+.topbar .tour-launch:hover{filter:brightness(.96)}
+@media(max-width:700px){.topbar .userbox{flex-wrap:wrap;gap:8px}.topbar .tour-launch{padding:8px 10px;font-size:12px}}
+.tour-ring{position:fixed;z-index:2147483646;pointer-events:none;border:3px solid #ffbf47;border-radius:8px;box-shadow:0 0 0 9999px #0005}
+.tour-dialog{position:fixed;inset:auto;margin:0;width:360px;max-width:calc(100vw - 24px);max-height:calc(100dvh - 24px);overflow:auto;box-sizing:border-box;border:0;border-radius:16px;padding:22px;background:#fff;color:#18243c;box-shadow:0 12px 50px #0005;font:16px/1.55 Roboto,sans-serif}
+.tour-dialog::backdrop{background:transparent}
+.tour-dialog h2{font-size:21px;color:#18243c;margin:8px 0 10px}.tour-dialog p{color:#35445b;margin:0 0 18px}.tour-count{font-size:13px;font-weight:700;color:#1648a3}.tour-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}.tour-actions button{border:1px solid #bac7d9;border-radius:8px;padding:8px 12px;background:#fff;color:#18243c;cursor:pointer;font:500 14px Roboto,sans-serif}.tour-actions [data-next]{background:#1648a3;color:#fff;border-color:#1648a3}.tour-actions button:disabled{opacity:.45;cursor:default}.tour-actions [data-close]{margin-right:auto}.tour-dialog button:focus-visible,.tour-launch:focus-visible{outline:3px solid #ffbf47;outline-offset:3px}
