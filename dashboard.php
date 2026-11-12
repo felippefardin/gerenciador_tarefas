@@ -71,6 +71,7 @@ require __DIR__ . '/includes/header.php';
         <p class="muted">Visão geral compartilhada das tarefas e dos lembretes.</p>
     </div>
     <div class="page-actions">
+        <a class="btn secondary" href="progress_dashboard.php">Dashboard de resultados / PDF</a>
         <a class="btn secondary" href="reminders.php"><i class="bi bi-bell" aria-hidden="true"></i> Lembretes</a>
         <a class="btn" href="task_form.php"><i class="bi bi-plus-lg" aria-hidden="true"></i> Nova tarefa</a>
     </div>

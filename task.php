@@ -6,6 +6,8 @@ ensure_v8_schema();
 ensure_v14_schema();
 ensure_v17_schema();
 ensure_v23_schema();
+require_once __DIR__ . '/includes/objectives.php';
+ensure_objectives_schema();
 $pdo = db();
 $u = current_user();
 $id = (int)($_GET['id'] ?? 0);
@@ -24,9 +26,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     verify_csrf();
     $action = $_POST['action'] ?? '';
-    if (in_array($action, ['subtask','toggle_subtask','upload','delete_attachment'], true) && !$canManageTaskFiles) {
+    if (in_array($action, ['subtask','toggle_subtask','add_objective','toggle_objective','delete_objective','edit_objective','edit_subtask','delete_subtask','upload','delete_attachment'], true) && !$canManageTaskFiles) {
         http_response_code(403);
         exit('Somente o criador ou um responsável pode alterar subtarefas e anexos desta tarefa pública.');
+    }
+
+    if (in_array($action, ['add_objective','toggle_objective','delete_objective','edit_objective','edit_subtask','delete_subtask'], true)) {
+        $sid = (int)($_POST['subtask_id'] ?? 0);
+        // Bloqueio da subtarefa serializa inclusões e marcações simultâneas.
+        $pdo->beginTransaction();
+        try {
+            $lock=$pdo->prepare('SELECT id FROM tasks WHERE id=? FOR UPDATE');
+            $lock->execute([$id]);
+            $q=$pdo->prepare('SELECT id FROM subtasks WHERE id=? AND task_id=? FOR UPDATE');
+            $q->execute([$sid,$id]);
+            if (!$q->fetchColumn()) { $pdo->rollBack(); http_response_code(404); exit('Subtarefa não encontrada.'); }
+            if ($action === 'edit_subtask' || $action === 'delete_subtask') {
+                if ($action === 'delete_subtask') {
+                    $q=$pdo->prepare('DELETE FROM subtasks WHERE id=? AND task_id=?');
+                    $q->execute([$sid,$id]);
+                    log_activity('excluiu uma subtarefa e seus objetivos', 'task', $id, $task['title']);
+                } else {
+                    $title=short_subtask_title((string)($_POST['title'] ?? ''));
+                    $description=trim((string)($_POST['subtask_description'] ?? ''));
+                    if ($title === '' || mb_strlen($title)>60 || mb_strlen($description)>300) {
+                        flash_message('Informe um nome de até 60 caracteres e uma descrição de até 300 caracteres.', 'error');
+                    } elseif (subtask_title_exists($id,$title,$sid)) {
+                        flash_message('Já existe uma subtarefa com esse nome nesta tarefa.', 'error');
+                    } else {
+                        $q=$pdo->prepare('UPDATE subtasks SET title=? WHERE id=? AND task_id=?');
+                        $q->execute([$title,$sid,$id]);
+                        save_subtask_description($sid,$description);
+                        log_activity('editou o nome de uma subtarefa', 'task', $id, $title);
+                    }
+                }
+            } elseif ($action === 'add_objective') {
+                $title=trim((string)($_POST['objective_title'] ?? ''));
+                if ($title === '' || mb_strlen($title) > 220) {
+                    flash_message('Informe um objetivo com até 220 caracteres.', 'error');
+                } else {
+                    $q=$pdo->prepare('INSERT INTO subtask_objectives(subtask_id,title) VALUES(?,?)');
+                    $q->execute([$sid,$title]);
+                    log_activity('adicionou objetivo à subtarefa', 'task', $id, $title);
+                }
+            } else {
+                $oid=(int)($_POST['objective_id'] ?? 0);
+                if ($action === 'edit_objective') {
+                    $title=trim((string)($_POST['objective_title'] ?? ''));
+                    if ($title === '' || mb_strlen($title)>220) {
+                        flash_message('Informe um objetivo com até 220 caracteres.', 'error');
+                    } else {
+                        $q=$pdo->prepare('UPDATE subtask_objectives SET title=? WHERE id=? AND subtask_id=?');
+                        $q->execute([$title,$oid,$sid]);
+                    }
+                } elseif ($action === 'delete_objective') {
+                    $q=$pdo->prepare('DELETE FROM subtask_objectives WHERE id=? AND subtask_id=?');
+                    $q->execute([$oid,$sid]);
+                } else {
+                    $q=$pdo->prepare('UPDATE subtask_objectives SET completed=? WHERE id=? AND subtask_id=?');
+                    $q->execute([empty($_POST['completed']) ? 0 : 1,$oid,$sid]);
+                }
+                if ($q->rowCount()) log_activity('atualizou objetivos da subtarefa', 'task', $id, $task['title']);
+            }
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            flash_message('Não foi possível salvar o objetivo. Tente novamente.', 'error');
+        }
+        redirect('task.php?id='.$id.($action === 'delete_subtask' ? '#subtasks-list' : '#subtask-'.$sid));
     }
 
     if ($action === 'comment') {
@@ -154,16 +221,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     } elseif ($action === 'subtask') {
-        $title = trim($_POST['title'] ?? '');
-        if ($title !== '') {
-            $s = $pdo->prepare('INSERT INTO subtasks(task_id,title) VALUES(?,?)');
-            $s->execute([$id, $title]);
-            log_activity('adicionou uma subtarefa', 'task', $id, $title);
-            $_SESSION['flash'] = 'Subtarefa adicionada.';
+        $title=short_subtask_title((string)($_POST['title'] ?? ''));
+        $description=trim((string)($_POST['subtask_description'] ?? ''));
+        if ($title === '' || mb_strlen($title)>60 || mb_strlen($description)>300) {
+            flash_message('Informe um nome de até 60 caracteres e uma descrição de até 300 caracteres.', 'error');
+        } else {
+            $pdo->beginTransaction();
+            try {
+                $lock=$pdo->prepare('SELECT id FROM tasks WHERE id=? FOR UPDATE');
+                $lock->execute([$id]);
+                if (subtask_title_exists($id,$title)) {
+                    $pdo->rollBack();
+                    flash_message('Já existe uma subtarefa com esse nome nesta tarefa.', 'error');
+                    redirect('task.php?id='.$id.'#subtasks-list');
+                }
+                $s=$pdo->prepare('INSERT INTO subtasks(task_id,title) VALUES(?,?)');
+                $s->execute([$id,$title]);
+                $newSubtaskId=(int)$pdo->lastInsertId();
+                save_subtask_description($newSubtaskId,$description);
+                log_activity('adicionou uma subtarefa', 'task', $id, $title);
+                $pdo->commit();
+                redirect('task.php?id='.$id.'#subtask-'.$newSubtaskId);
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                flash_message('Não foi possível criar a subtarefa. Tente novamente.', 'error');
+            }
         }
     } elseif ($action === 'toggle_subtask') {
         $sid = (int)($_POST['subtask_id'] ?? 0);
-        $s = $pdo->prepare('UPDATE subtasks SET completed=1-completed WHERE id=? AND task_id=?');
+        $s = $pdo->prepare('UPDATE subtasks SET completed=1-completed WHERE id=? AND task_id=? AND NOT EXISTS (SELECT 1 FROM subtask_objectives o WHERE o.subtask_id=subtasks.id)');
         $s->execute([$sid, $id]);
         log_activity('atualizou uma subtarefa', 'task', $id, $task['title']);
         $_SESSION['flash'] = 'Subtarefa atualizada.';
@@ -206,9 +292,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect('task.php?id=' . $id);
 }
 
-$s = $pdo->prepare('SELECT s.* FROM subtasks s WHERE task_id=? ORDER BY id');
+$subtasks = objective_subtasks($id);
+$objectivesBySubtask = [];
+$s=$pdo->prepare('SELECT o.* FROM subtask_objectives o JOIN subtasks s ON s.id=o.subtask_id WHERE s.task_id=? ORDER BY o.id');
 $s->execute([$id]);
-$subtasks = $s->fetchAll();
+foreach ($s->fetchAll() as $objective) $objectivesBySubtask[$objective['subtask_id']][]=$objective;
 
 $s = $pdo->prepare('SELECT c.*,u.name user_name FROM comments c JOIN users u ON u.id=c.user_id WHERE task_id=? ORDER BY c.created_at DESC');
 $s->execute([$id]);
@@ -230,8 +318,8 @@ foreach ($attachments as $a) {
 }
 
 $doneCount = 0;
-foreach ($subtasks as $st) if ($st['completed']) $doneCount++;
-$progress = count($subtasks) ? round($doneCount / count($subtasks) * 100) : 0;
+foreach ($subtasks as $st) if (objective_ratio($st) >= 1) $doneCount++;
+$progress = objective_task_progress($subtasks);
 $canDeleteTask = $canManageTaskFiles;
 $pageTitle = $task['title'];
 require __DIR__ . '/includes/header.php';
@@ -244,6 +332,7 @@ require __DIR__ . '/includes/header.php';
         <p class="muted">Criada por <?= e($task['creator_name']) ?> <span>•</span> <i class="bi <?= !empty($task['is_private']) ? 'bi-lock-fill' : 'bi-people-fill' ?>" aria-hidden="true"></i> <?= !empty($task['is_private']) ? 'Privada' : 'Pública' ?></p>
     </div>
     <div class="page-actions task-detail-actions">
+        <a class="btn secondary" href="progress_dashboard.php?task_id=<?= $id ?>">Dashboard e PDF</a>
         <?php if ($canDeleteTask): ?><a class="btn secondary" href="task_form.php?id=<?= $task['id'] ?>"><i class="bi bi-pencil-square" aria-hidden="true"></i> Editar</a><?php endif; ?>
         <?php if ($canDeleteTask && $task['status'] === 'done'): ?>
         <form method="post" action="archive_task.php" onsubmit="return confirm('Arquivar esta tarefa concluída?');">
@@ -303,24 +392,7 @@ require __DIR__ . '/includes/header.php';
     </div>
     <?php endif; ?>
 
-    <div class="panel task-section-card task-subtasks-card">
-        <div class="panel-head task-section-heading"><div><span class="task-section-icon"><i class="bi bi-list-check" aria-hidden="true"></i></span><div><h2>Subtarefas</h2><p><?= $doneCount ?> de <?= count($subtasks) ?> concluídas</p></div></div><span class="task-progress-value"><?= $progress ?>%</span></div>
-        <div class="progress"><span style="width:<?= $progress ?>%"></span></div>
-        <div class="subtasks">
-            <?php if (!$subtasks): ?><div class="task-inline-empty"><span><i class="bi bi-check2-circle" aria-hidden="true"></i></span><p>Nenhuma subtarefa adicionada.</p></div><?php endif; ?>
-            <?php foreach ($subtasks as $st): ?>
-            <form method="post" class="subtask <?= $st['completed'] ? 'done' : '' ?>">
-                <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
-                <input type="hidden" name="action" value="toggle_subtask"><input type="hidden" name="subtask_id" value="<?= $st['id'] ?>">
-                <?php if ($canManageTaskFiles): ?><button type="submit" class="check"><i class="bi <?= $st['completed'] ? 'bi-check-circle-fill' : 'bi-circle' ?>" aria-hidden="true"></i></button><?php else: ?><span class="check"><i class="bi <?= $st['completed'] ? 'bi-check-circle-fill' : 'bi-circle' ?>" aria-hidden="true"></i></span><?php endif; ?><span><?= e($st['title']) ?></span>
-            </form>
-            <?php endforeach; ?>
-        </div>
-        <?php if ($canManageTaskFiles): ?><form method="post" class="inline-form">
-            <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
-            <input type="hidden" name="action" value="subtask"><input name="title" placeholder="Adicionar subtarefa..." required><button class="btn small">Adicionar</button>
-        </form><?php endif; ?>
-    </div>
+    <?php require __DIR__ . '/includes/objectives_panel.php'; ?>
 
     <div class="panel task-section-card task-comments-card">
         <div class="task-section-heading"><div><span class="task-section-icon">◌</span><div><h2>Comentários</h2><p>Registre atualizações e informações importantes</p></div></div><span class="task-count-pill"><?= count($comments) ?></span></div>

@@ -169,6 +169,41 @@ $user = $stmt->fetch();
 $pageTitle = 'Meu perfil';
 require __DIR__ . '/includes/header.php';
 ?>
+<style>
+/* Espacamento exclusivo da pagina de perfil. */
+.profile-page .profile-grid { gap: 24px; margin-bottom: 24px; }
+.profile-page > .panel { margin-bottom: 24px; }
+.profile-page .panel { padding: 24px; min-width: 0; }
+.profile-page .profile-grid form > .btn { margin-top: 20px; }
+.profile-page .profile-meta { margin: 20px 0 0; gap: 12px 20px; }
+.profile-page .profile-email-change-request,
+.profile-page .profile-email-change-confirm,
+.profile-page .profile-code-form,
+.profile-page .account-delete-form {
+    gap: 20px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: end;
+    margin-top: 20px;
+}
+.profile-page .profile-email-change-request > div:last-child,
+.profile-page .profile-email-change-confirm > div:last-child,
+.profile-page .profile-code-form > div:last-child,
+.profile-page .account-delete-form > div:last-child { grid-column: 1 / -1; }
+.profile-page .profile-code-send { margin-top: 20px; }
+.profile-page .btn { min-height: 44px; height: auto; padding: 12px 20px; white-space: normal; max-width: 100%; line-height: 1.4; }
+.profile-page .profile-code-form,
+.profile-page .profile-email-change-confirm { padding-top: 20px; }
+@media (max-width: 900px) {
+    .profile-page .profile-grid,
+    .profile-page .profile-email-change-request,
+    .profile-page .profile-email-change-confirm,
+    .profile-page .profile-code-form,
+    .profile-page .account-delete-form { grid-template-columns: minmax(0, 1fr); }
+    .profile-page .panel { padding: 20px; }
+    .profile-page .btn { width: 100%; }
+}
+</style>
+<div class="profile-page">
 <div class="page-head">
     <div><h1>Meu perfil</h1><p class="muted">Esta página é particular da sua conta.</p></div>
 </div>
@@ -275,4 +310,5 @@ require __DIR__ . '/includes/header.php';
         <div><button class="btn danger" type="submit">Excluir minha conta</button></div>
     </form>
 </section>
+</div>
 <?php require __DIR__ . '/includes/footer.php'; ?>

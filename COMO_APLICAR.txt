@@ -1,0 +1,12 @@
+DASHBOARD EM LARGURA TOTAL NO DESKTOP
+
+Copie progress_dashboard.php para a raiz do projeto e
+assets/results_layout.css para a pasta assets, substituindo os arquivos.
+Mescle as pastas. Atualize a página com Ctrl+F5.
+
+No desktop (a partir de 1024px), o dashboard passa a usar toda a largura
+disponível com margens laterais de 24px. Em telas a partir de 1400px,
+os seis indicadores menores ficam na mesma linha.
+O ajuste é exclusivo do dashboard de resultados.
+O formato A4 de impressão e os estilos para celular são preservados.
+Não altera registros do banco.

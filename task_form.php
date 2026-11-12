@@ -84,8 +84,7 @@ $users = $pdo->query('SELECT id,name FROM users ORDER BY name')->fetchAll();
 $requestedFilter = (string)($_GET['filter'] ?? 'all');
 $filter = in_array($requestedFilter, ['all','mine','overdue','today','done','due_soon','due_alert'], true) ? $requestedFilter : 'all';
 $search = trim((string)($_GET['q'] ?? ''));
-$requestedSort = (string)($_GET['sort'] ?? 'priority');
-$sort = in_array($requestedSort, ['priority','due','assignee'], true) ? $requestedSort : 'priority';
+$sort = 'priority';
 
 $where = ['t.archived_at IS NULL', '(t.is_private=0 OR t.creator_id=?)'];
 $params = [(int)$user['id']];
@@ -108,9 +107,22 @@ if ($filter === 'mine') {
     $params[] = (int)$user['id'];
 }
 if ($search !== '') {
-    $where[] = '(t.title LIKE ? OR t.description LIKE ? OR EXISTS(SELECT 1 FROM task_assignees tas JOIN users uas ON uas.id=tas.user_id WHERE tas.task_id=t.id AND uas.name LIKE ?) OR c.name LIKE ?)';
-    $term = '%' . $search . '%';
+    // Pesquisa geral; os parametros continuam separados do SQL.
+    $searchFields = [
+        't.title', 't.description', 'c.name', 'c.username',
+        'CAST(t.id AS CHAR)', 't.priority', 't.status',
+        "DATE_FORMAT(t.due_date, '%d/%m/%Y')", 'CAST(t.due_date AS CHAR)',
+        "CASE t.priority WHEN 'low' THEN 'Baixa' WHEN 'medium' THEN 'Média' WHEN 'high' THEN 'Alta' WHEN 'urgent' THEN 'Urgente' END",
+        "CASE t.status WHEN 'todo' THEN 'A fazer' WHEN 'doing' THEN 'Em andamento' WHEN 'review' THEN 'Em revisão' WHEN 'done' THEN 'Concluída Concluído' END"
+    ];
+    $searchConditions = array_map(fn($field) => $field . ' LIKE ?', $searchFields);
+    $term = '%' . strtr($search, ['!' => '!!', '%' => '!%', '_' => '!_']) . '%';
+    $searchConditions = array_map(fn($condition) => $condition . " ESCAPE '!'", $searchConditions);
+    foreach ($searchFields as $field) $params[] = $term;
+    $searchConditions[] = "EXISTS(SELECT 1 FROM task_assignees tas JOIN users uas ON uas.id=tas.user_id WHERE tas.task_id=t.id AND (uas.name LIKE ? ESCAPE '!' OR uas.username LIKE ? ESCAPE '!'))";
+    $searchConditions[] = "EXISTS(SELECT 1 FROM users legacy_assignee WHERE legacy_assignee.id=t.assignee_id AND (legacy_assignee.name LIKE ? ESCAPE '!' OR legacy_assignee.username LIKE ? ESCAPE '!'))";
     array_push($params, $term, $term, $term, $term);
+    $where[] = '(' . implode(' OR ', $searchConditions) . ')';
 }
 $orderBy = match ($sort) {
     'due' => 't.due_date IS NULL,t.due_date,FIELD(t.priority,"urgent","high","medium","low"),t.created_at DESC',
@@ -184,10 +196,10 @@ require __DIR__ . '/includes/header.php';
   </div>
 </div>
 <section class="task-tools task-control-panel" aria-label="Filtros de tarefas">
-    <div class="task-controls-heading"><div><span class="task-control-icon" aria-hidden="true">⌕</span><div><strong>Organize seu quadro</strong><small>Filtre, pesquise e escolha a melhor ordem.</small></div></div></div>
+    <div class="task-controls-heading"><div><span class="task-control-icon" aria-hidden="true">⌕</span><div><strong>Organize seu quadro</strong><small>Digite um termo para pesquisar em todos os dados principais da tarefa.</small></div></div></div>
     <div class="quick-filters task-filter-tabs">
         <?php foreach (['all'=>'Todas','mine'=>'Minhas tarefas','overdue'=>'Atrasadas','today'=>'Hoje','done'=>'Concluídas'] as $value=>$label):
-            $filterUrl = 'task_form.php?' . http_build_query(array_filter(['filter'=>$value,'q'=>$search,'sort'=>$sort], fn($v) => $v !== ''));
+            $filterUrl = 'task_form.php?' . http_build_query(array_filter(['filter'=>$value,'q'=>$search], fn($v) => $v !== ''));
         ?>
             <a class="filter-chip <?= $filter === $value ? 'active' : '' ?>" href="<?= e($filterUrl) ?>"><?= e($label) ?></a>
         <?php endforeach; ?>
@@ -197,15 +209,9 @@ require __DIR__ . '/includes/header.php';
     <form class="task-search-form task-modern-search" method="get">
         <input type="hidden" name="filter" value="<?= e($filter) ?>">
         <label class="sr-only" for="task-search">Pesquisar tarefas</label>
-        <div class="task-search-input"><span aria-hidden="true">⌕</span><input id="task-search" type="search" name="q" value="<?= e($search) ?>" placeholder="Pesquisar tarefa ou responsável..."></div>
-        <label class="sr-only" for="task-sort">Ordenar tarefas</label>
-        <select id="task-sort" name="sort">
-            <option value="priority" <?= $sort === 'priority' ? 'selected' : '' ?>>Prioridade</option>
-            <option value="due" <?= $sort === 'due' ? 'selected' : '' ?>>Prazo</option>
-            <option value="assignee" <?= $sort === 'assignee' ? 'selected' : '' ?>>Responsável</option>
-        </select>
-        <button class="btn" type="submit">Aplicar</button>
-        <?php if ($search !== '' || $filter !== 'all' || $sort !== 'priority'): ?><a class="btn secondary" href="task_form.php">Limpar</a><?php endif; ?>
+        <div class="task-search-input"><span aria-hidden="true">⌕</span><input id="task-search" type="search" name="q" value="<?= e($search) ?>" placeholder="Buscar por nome, texto, prioridade ou prazo..."></div>
+        <button class="btn" type="submit">Buscar</button>
+        <?php if ($search !== '' || $filter !== 'all'): ?><a class="btn secondary" href="task_form.php">Limpar</a><?php endif; ?>
     </form>
 </section>
 <div class="task-board-heading"><div><h2>Quadro de tarefas</h2><p><?= $totalVisible ?> resultado<?= $totalVisible === 1 ? '' : 's' ?> nesta visualização</p></div><span>Arraste os cartões para atualizar o status</span></div>

@@ -1,0 +1,61 @@
+NOMES E DESCRIÇÕES CURTOS / PROTEÇÃO CONTRA DUPLICIDADE
+Nome da subtarefa: até 60 caracteres. Descrição opcional: até 300.
+Não permite repetir nomes dentro da mesma tarefa principal, inclusive ao editar.
+Ignora maiúsculas/minúsculas e espaços repetidos na comparação dos nomes.
+O mesmo nome pode ser utilizado em tarefas principais diferentes.
+Cliques repetidos e envios simultâneos são tratados no servidor.
+Não remove nem modifica duplicatas antigas; elas podem ser renomeadas ou
+excluídas manualmente. Nomes e descrições antigos não são truncados.
+
+NOVO — DASHBOARD E PDF INDIVIDUAL POR SUBTAREFA
+Dentro de cada subtarefa, clique em Dashboard / PDF.
+O relatório mostra nome, descrição, tarefa principal, projeto, responsáveis,
+prazo e prioridade da tarefa, gráfico circular, barra de porcentagem,
+quantidade de objetivos e lista completa com situação de cada um.
+Para PDF, use Salvar relatório completo em PDF e escolha Salvar como PDF.
+Nenhum objetivo é truncado e a lista continua nas páginas seguintes.
+Copie também subtask_dashboard.php e assets/subtask_report.css.
+O novo relatório apenas lê os registros; não cria ou altera seus dados.
+
+ATUALIZAÇÃO — SUBTAREFAS COM DESCRIÇÃO E OBJETIVOS EM LISTA
+
+COMO INSTALAR
+Faça uma cópia de segurança dos arquivos e banco antes de instalar.
+Copie os arquivos deste pacote para a raiz de gerenciador_tarefas, mesclando
+assets e includes. Substitua somente os arquivos correspondentes.
+Não apague pastas inteiras; não execute setup.php e não restaure banco.
+Funciona sobre a versão original e sobre os dois pacotes anteriores.
+
+ESTRUTURA
+Uma tarefa principal aceita várias subtarefas.
+Cada subtarefa tem nome, descrição opcional e barra de progresso.
+Editar permite alterar seu nome e descrição. Excluir pede confirmação e
+remove a subtarefa com seus objetivos.
+Dentro de cada subtarefa há uma lista de objetivos independentes.
+Cada objetivo tem apenas texto, marcação de conclusão, editar e excluir.
+Não existem descrição ou novas tarefas dentro de um objetivo.
+O campo Adicionar objetivo pertence à subtarefa, após a lista de objetivos.
+
+PROGRESSO E RELATÓRIO
+Com objetivos: percentual = objetivos concluídos / total de objetivos.
+Sem objetivos: mantém a conclusão manual anterior, preservando seus registros.
+Progresso da tarefa principal = média do progresso das suas subtarefas.
+O status da tarefa principal continua sendo controlado manualmente.
+Dashboard > Dashboard de resultados / PDF mostra gráficos, barras, subtarefas,
+descrições e objetivos. Na tarefa, Dashboard e PDF mostra aquela tarefa.
+Clique em Salvar dashboard em PDF e selecione Salvar como PDF no navegador.
+O relatório inclui todas as tarefas visíveis; arquivadas são opcionais.
+Lembretes não entram nestes indicadores.
+
+PRESERVAÇÃO
+A instalação cria somente as tabelas auxiliares subtask_objectives e
+subtask_details, caso não existam. Não altera linhas ou colunas antigas.
+O usuário MySQL precisa de permissão CREATE.
+Títulos, marcações e objetivos já existentes são preservados.
+Não há dados, senhas, configurações ou banco no pacote.
+As alterações de registros acontecem apenas ao usar as opções do sistema.
+
+VERIFICAÇÃO
+Sintaxe PHP, cálculos, renderização e isolamento dos formulários conferidos.
+Não foi acessado ou alterado o banco original. Validar o funcionamento
+integrado e a impressão no ambiente instalado com uma tarefa de teste.
